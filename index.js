@@ -7,7 +7,11 @@ require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-const serviceAccount = require("./firebase-service-key.json");
+// index.js
+const decoded = Buffer.from(process.env.FIREBASE_SECRET_KEY, "base64").toString(
+  "utf8"
+);
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -25,7 +29,7 @@ const client = new MongoClient(uri, {
 app.use(cors());
 app.use(express.json());
 
-const middlewar = async (req, res, next) => {
+const firebaseTokenVerify = async (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization) {
     return res.status(401).send({ message: "unauthorized access" });
@@ -70,13 +74,13 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/allcrops", async (req, res) => {
+    app.post("/allcrops", firebaseTokenVerify, async (req, res) => {
       const newCrop = req.body;
       const result = await cropsCollection.insertOne(newCrop);
       res.send(result);
     });
 
-    app.get("/allcrops/:id", middlewar, async (req, res) => {
+    app.get("/allcrops/:id", firebaseTokenVerify, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const crop = await cropsCollection.findOne(query);
@@ -89,7 +93,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/mypost", middlewar, async (req, res) => {
+    app.get("/mypost", firebaseTokenVerify, async (req, res) => {
       const email = req.query.email;
       const result = await cropsCollection
         .find({ "owner.ownerEmail": email })
@@ -97,13 +101,13 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/myinterest", middlewar, async (req, res) => {
+    app.post("/myinterest", firebaseTokenVerify, async (req, res) => {
       const newInterest = req.body;
       const result = await interestsCollection.insertOne(newInterest);
       res.send(result);
     });
 
-    app.get("/myinterest", middlewar, async (req, res) => {
+    app.get("/myinterest", firebaseTokenVerify, async (req, res) => {
       const email = req.query.email;
       const result = await interestsCollection
         .find({ userEmail: email })
@@ -118,16 +122,28 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/product-interests/:id", middlewar, async (req, res) => {
-      const id = { _id: new ObjectId(req.params.id) };
-      const updateData = req.body;
-      const result = await interestsCollection.updateOne(id, {
-        $set: updateData,
-      });
+    app.patch(
+      "/product-interests/:id",
+      firebaseTokenVerify,
+      async (req, res) => {
+        const id = { _id: new ObjectId(req.params.id) };
+        const updateData = req.body;
+        const result = await interestsCollection.updateOne(id, {
+          $set: updateData,
+        });
+        res.send(result);
+      }
+    );
+
+    app.get("/search", firebaseTokenVerify, async (req, res) => {
+      const search_text = req.query.search;
+      const result = await cropsCollection
+        .find({ name: { $regex: search_text, $options: "i" } })
+        .toArray();
       res.send(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("KrishLink server connected to mongodb");
   } catch (error) {
     console.log(error);
