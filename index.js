@@ -54,7 +54,7 @@ app.get("/", (req, res) => {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const krishDB = client.db("krish_db");
     const usersCollection = krishDB.collection("users");
     const cropsCollection = krishDB.collection("crops");
@@ -77,6 +77,15 @@ async function run() {
     app.post("/allcrops", firebaseTokenVerify, async (req, res) => {
       const newCrop = req.body;
       const result = await cropsCollection.insertOne(newCrop);
+      res.send(result);
+    });
+
+    app.patch("/allcrops/:id", firebaseTokenVerify, async (req, res) => {
+      const id = { _id: new ObjectId(req.params.id) };
+      const updateData = req.body;
+      const result = await cropsCollection.updateOne(id, {
+        $set: updateData,
+      });
       res.send(result);
     });
 
@@ -111,6 +120,7 @@ async function run() {
       const email = req.query.email;
       const result = await interestsCollection
         .find({ userEmail: email })
+        .sort({ quantity: -1 })
         .toArray();
       res.send(result);
     });
